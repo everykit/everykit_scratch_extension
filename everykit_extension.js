@@ -324,7 +324,7 @@
     ['h', 'Bluetooth-receive Event port < %d.usb_port > %m.led', 'ledModule', 5],
     [' ', 'Bluetooth-receive port < %d.usb_port > %m.led', 'ledModule', 5],
     [' ', 'Smart Plug Module port < %d.usb_port > %m.control', 'ledModule', 5],
-  ],
+  ]
   };
 
   var menus = {
