@@ -308,6 +308,17 @@
   ext.tempModule = function(port){
       return 0;
   }
+  
+    // Check for GET param 'lang'
+  var paramString = window.location.search.replace(/^\?|\/$/g, '');
+  var vars = paramString.split("&");
+  var lang = 'en';
+  for (var i=0; i<vars.length; i++) {
+    var pair = vars[i].split('=');
+    if (pair.length > 1 && pair[0]=='lang')
+      lang = pair[1];
+  }
+ 
   var blocks = {
    ko: [
     ['r', '온도 모듈 port < %d.usb_port >', 'tempModule', 5],
@@ -345,8 +356,8 @@
   };
 
   var descriptor = {
-    blocks: blocks,
-    menus: menus,
+    blocks: blocks[lang],
+    menus: menus[lang],
     url: 'http://khanning.github.io/scratch-arduino-extension'
   };
 
