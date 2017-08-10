@@ -41,9 +41,8 @@
     IMU_EVENT_DOUBLE_TAP = 0x01,
     IMU_EVENT_SHAKE = 0x02;
 
-  var PWM_PINS = [3, 5, 6, 9];
-    DIGITAL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-    ANALOG_PINS = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5'];
+  var USB_PORT = [1, 2, 3, 4, 5];
+
 
   var LOW = 0,
     HIGH = 1;
@@ -305,30 +304,24 @@
     if (device) device.close();
     device = null;
   };
-
+  
+  ext.tempModule = function(port){
+      return 0;
+  }
   var blocks = [
-    [' ', 'set pin %d.digitalOutputs %m.outputs', 'digitalWrite', 13, 'on'],
-    [' ', 'set pin %d.analogOutputs to %n%', 'analogWrite', 9, 100],
-    ['h', 'when pin %d.digitalInputs is %m.outputs', 'whenDigitalRead', 9, 'on'],
-    ['b', 'pin %d.digitalInputs on?', 'digitalRead', 9],
-    ['-'],
-    ['h', 'when analog pin %d.analogInputs %m.ops %n%', 'whenAnalogRead', 'A0', '>', 50],
-    ['r', 'read analog pin %d.analogInputs', 'analogRead', 'A0'],
-    ['-'],
-    ['h', 'when shaken', 'whenIMUEvent'],
-    ['r', 'tilt angle %m.tiltDir', 'getTilt', 'up'],
-    ['-'],
-    [' ', 'set pin %d.digitalOutputs servo to %n degrees', 'rotateServo', 7, 90],
-    ['r', 'pin %d.digitalOutputs servo position', 'servoPosition', 7]
+    ['r', '온도 모듈 port < %d.usb_port >', 'tempModule', 5],
+    [' ', 'LED 모듈 port < %d.usb_port > %m.led', 'ledModule', 5],
+    ['r', '블루투수 모듈-수신 port < %d.usb_port > %m.led', 'ledModule', 5],
+    ['h', '블루투수 모듈-송신 Event port < %d.usb_port > %m.led', 'ledModule', 5],
+    [' ', '블루투수 모듈-송신 port < %d.usb_port > %m.led', 'ledModule', 5],
+    [' ', '스마트플러그 모듈 port < %d.usb_port > %m.control', 'ledModule', 5],
   ];
 
   var menus = {
-    digitalOutputs: DIGITAL_PINS,
-    analogOutputs: PWM_PINS,
-    digitalInputs: DIGITAL_PINS,
-    analogInputs: ANALOG_PINS,
-    outputs: ['on', 'off'],
+    usb_port: USB_PORT,
+    control: ['on', 'off'],
     ops: ['>', '=', '<'],
+    led: ['Red','Blue','Green'],
     tiltDir: ['up', 'down', 'left', 'right']
   };
 
