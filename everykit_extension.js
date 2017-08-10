@@ -308,14 +308,24 @@
   ext.tempModule = function(port){
       return 0;
   }
-  var blocks = [
+  var blocks = {
+   ko: [
     ['r', '온도 모듈 port < %d.usb_port >', 'tempModule', 5],
     [' ', 'LED 모듈 port < %d.usb_port > %m.led', 'ledModule', 5],
     ['r', '블루투수 모듈-수신 port < %d.usb_port > %m.led', 'ledModule', 5],
     ['h', '블루투수 모듈-송신 Event port < %d.usb_port > %m.led', 'ledModule', 5],
     [' ', '블루투수 모듈-송신 port < %d.usb_port > %m.led', 'ledModule', 5],
     [' ', '스마트플러그 모듈 port < %d.usb_port > %m.control', 'ledModule', 5],
-  ];
+  ],
+   en: [
+    ['r', 'Temp Module port < %d.usb_port >', 'tempModule', 5],
+    [' ', 'LED Module port < %d.usb_port > %m.led', 'ledModule', 5],
+    ['r', 'Bluetooth-send port < %d.usb_port > %m.led', 'ledModule', 5],
+    ['h', 'Bluetooth-receive Event port < %d.usb_port > %m.led', 'ledModule', 5],
+    [' ', 'Bluetooth-receive port < %d.usb_port > %m.led', 'ledModule', 5],
+    [' ', 'Smart Plug Module port < %d.usb_port > %m.control', 'ledModule', 5],
+  ],
+  };
 
   var menus = {
     usb_port: USB_PORT,
