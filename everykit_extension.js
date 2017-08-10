@@ -328,11 +328,20 @@
   };
 
   var menus = {
+   en: {
     usb_port: USB_PORT,
     control: ['on', 'off'],
     ops: ['>', '=', '<'],
     led: ['Red','Blue','Green'],
     tiltDir: ['up', 'down', 'left', 'right']
+   },
+   ko: {
+    usb_port: USB_PORT,
+    control: ['on', 'off'],
+    ops: ['>', '=', '<'],
+    led: ['Red','Blue','Green'],
+    tiltDir: ['up', 'down', 'left', 'right']    
+   }
   };
 
   var descriptor = {
