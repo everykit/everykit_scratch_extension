@@ -1,365 +1,324 @@
- /*This program is free software: you can redistribute it and/or modify
- *it under the terms of the GNU General Public License as published by
- *the Free Software Foundation, either version 3 of the License, or
- *(at your option) any later version.
- *
- *This program is distributed in the hope that it will be useful,
- *but WITHOUT ANY WARRANTY; without even the implied warranty of
- *MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *GNU General Public License for more details.
- *
- *You should have received a copy of the GNU General Public License
- *along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-(function(ext) {
-
-  var potentialDevices = [];
-  var watchdog = null;
-  var poller = null;
-  var lastReadTime = 0;
-  var connected = false;
-  var command = null;
-  var parsingCmd = false;
-  var bytesRead = 0;
-  var waitForData = 0;
-  var storedInputData = new Uint8Array(4096);
-
-  var CMD_DIGITAL_WRITE = 0x73,
-    CMD_ANALOG_WRITE = 0x74,
-    CMD_PIN_MODE = 0x75,
-    CMD_CALIBRATE_IMU = 0x76,
-    CMD_SERVO_WRITE = 0x77,
-    CMD_ANALOG_READ = 0x78,
-    CMD_DIGITAL_READ = 0x79,
-    CMD_IMU_READ = 0x7A,
-    CMD_IMU_EVENT = 0x7B,
-    CMD_PING = 0x7C,
-    CMD_PING_CONFIRM = 0x7D;
-
-  var IMU_EVENT_TAP = 0x00,
-    IMU_EVENT_DOUBLE_TAP = 0x01,
-    IMU_EVENT_SHAKE = 0x02;
-
-  var USB_PORT = [1, 2, 3, 4, 5];
-
-
-  var LOW = 0,
-    HIGH = 1;
-
-  var INPUT = 0,
-    OUTPUT = 1;
-
-  var digitalInputData = new Uint8Array(12),
-    pinModes = new Uint8Array(12),
-    analogInputData = new Uint8Array(6),
-    accelInputData = [0,0],
-    imuEventData = new Uint8Array(3),
-    servoVals = new Uint8Array(12);
-
-  var device = null;
-
-  function analogRead(aPin) {
-    var pin = -1;
-    if (isNaN(parseFloat(aPin)))
-      pin = ANALOG_PINS.indexOf(aPin.toUpperCase());
-    else if (ANALOG_PINS[aPin])
-      pin = aPin;
-    if (pin === -1) return;
-    return Math.round(map(analogInputData[pin], 0, 255, 0, 100));
-  }
-
-  function digitalRead(pin) {
-    if (DIGITAL_PINS.indexOf(parseInt(pin)) === -1) return;
-    if (pinModes[pin-2] != INPUT)
-      pinMode(pin, INPUT);
-    return digitalInputData[parseInt(pin)-2];
-  }
-
-  function analogWrite(pin, val) {
-    if (PWM_PINS.indexOf(parseInt(pin)) === -1) return;
-    if (val < 0) val = 0;
-    else if (val > 100) val = 100;
-    val = Math.round((val / 100) * 255);
-    device.send(new Uint8Array([CMD_ANALOG_WRITE, pin, val]).buffer);
-  }
-
-  function digitalWrite(pin, val) {
-    if (DIGITAL_PINS.indexOf(parseInt(pin)) === -1) return;
-    device.send(new Uint8Array([CMD_DIGITAL_WRITE, pin, val]).buffer);
-  }
-
-  function pinMode(pin, mode) {
-    device.send(new Uint8Array([CMD_PIN_MODE, pin, mode]).buffer);
-  }
-
-  function rotateServo(pin, deg) {
-    if (DIGITAL_PINS.indexOf(parseInt(pin)) === -1) return;
-    device.send(new Uint8Array([CMD_SERVO_WRITE, pin, deg]).buffer);
-    servoVals[pin] = deg;
-  }
-
-  function map(val, aMin, aMax, bMin, bMax) {
-    if (val > aMax) val = aMax;
-    else if (val < aMin) val = aMin;
-    return (((bMax - bMin) * (val - aMin)) / (aMax - aMin)) + bMin;
-  }
-
-  function tryNextDevice() {
-    device = potentialDevices.shift();
-    if (!device) return;
-    device.open({stopBits: 0, bitRate: 57600, ctsFlowControl: 0}, function() {
-      device.set_receive_handler(function(data) {
-        processInput(new Uint8Array(data));
-      });
-    });
-
-    poller = setInterval(function() {
-      pingDevice();
-    }, 1000);
-
-    watchdog = setTimeout(function() {
-      clearTimeout(poller);
-      poller = null;
-      device.set_receive_handler(null);
-      device.close();
-      device = null;
-      tryNextDevice();
-    }, 5000);
-  }
-
-  function pingDevice() {
-    device.send(new Uint8Array([CMD_PING]).buffer);
-  }
-
-  function processInput(inputData) {
-    lastReadTime = Date.now();
-    for (var i=0; i<inputData.length; i++) {
-      if (parsingCmd) {
-        storedInputData[bytesRead++] = inputData[i];
-        if (bytesRead === waitForData) {
-          parsingCmd = false;
-          processCmd();
-        }
-      } else {
-        switch (inputData[i]) {
-        case CMD_PING:
-          parsingCmd = true;
-          command = inputData[i];
-          waitForData = 2;
-          bytesRead = 0;
-          break;
-        case CMD_ANALOG_READ:
-          parsingCmd = true;
-          command = inputData[i];
-          waitForData = 6;
-          bytesRead = 0;
-          break;
-        case CMD_DIGITAL_READ:
-          parsingCmd = true;
-          command = inputData[i];
-          waitForData = 12;
-          bytesRead = 0;
-          break;
-        case CMD_IMU_READ:
-          parsingCmd = true;
-          command = inputData[i];
-          waitForData = 4;
-          bytesRead = 0;
-          break;
-        case CMD_IMU_EVENT:
-          parsingCmd = true;
-          command = inputData[i];
-          waitForData = 3;
-          bytesRead = 0;
-          break;
-        }
-      }
-    }
-  }
-
-  function processCmd() {
-    switch (command) {
-    case CMD_PING:
-      if (storedInputData[0] === CMD_PING_CONFIRM) {
+    /*This program is free software: you can redistribute it and/or modify
+    *it under the terms of the GNU General Public License as published by
+    *the Free Software Foundation, either version 3 of the License, or
+    *(at your option) any later version.
+    *
+    *This program is distributed in the hope that it will be useful,
+    *but WITHOUT ANY WARRANTY; without even the implied warranty of
+    *MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    *GNU General Public License for more details.
+    *
+    *You should have received a copy of the GNU General Public License
+    *along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    */
+    
+    (function(ext) {
+    
+    
+    
+    var USB_PORT = [1, 2, 3, 4, 5];
+    var connected = false;
+    var bluetoothRevEventFlag = new Array();
+    var EveryKitData = new Array();
+    var deviceList = new Array();
+    var driverSocket = io.connect("http://192.168.137.2:3001",{'forceNew': true});
+    console.log("loading Extension");   
+    driverSocket.on('connect', function() {
         connected = true;
-        clearTimeout(watchdog);
-        watchdog = null;
-        clearInterval(poller);
-        poller = setInterval(function() {
-          if (Date.now() - lastReadTime > 5000) {
-            connected = false;
-            device.set_receive_handler(null);
-            device.close();
-            device = null;
-            clearInterval(poller);
-            poller = null;
-          }
-        }, 2000);
-      }
-      break;
-    case CMD_ANALOG_READ:
-      analogInputData = storedInputData.slice(0, 6);
-      break;
-    case CMD_DIGITAL_READ:
-      digitalInputData = storedInputData.slice(0, 12);
-      break;
-    case CMD_IMU_READ:
-      for (var i=0; i<2; i++) {
-        accelInputData[i] = storedInputData[(i*2)+1];
-        if (storedInputData[i*2]) accelInputData[i] *= -1;
-      }
-      break;
-    case CMD_IMU_EVENT:
-      imuEventData = storedInputData.slice(0, 3);
-      break;
+        driverSocket.emit("refresh");
+    });
+    driverSocket.on('disconnect', function() {
+        connected = false;
+    });
+    driverSocket.on('reconnect', function() {
+    
+    });
+    
+    driverSocket.on("newDevice", function(data) {
+        deviceList.push(data);
+        switch(data.deviceType)
+        {
+            case 65025:
+            {
+                //temp module
+                EveryKitData[data.portID[1]] = new Array();
+
+                break;
+            }
+            case 65026:
+            {
+                //RGB module
+                break;
+            }
+            case 65027:
+            {
+                //bluetooth module
+                EveryKitData[data.portID[1]] = new Array();
+
+                break;
+            }
+            case 65028:
+            {
+                //smartplug module
+                break;
+            }
+        }
+        
+    });
+    driverSocket.on('error',function(msg){
+    })
+    
+    driverSocket.on("removeDevice", function(data) { 
+    });
+    
+    driverSocket.on("receiveData", function(data) {
+        for(i = 0 ; i < deviceList.length ; i++)
+        {
+            if(deviceList[i].deviceID == data.DeviceID)
+            {
+                var portID = deviceList[i].portID[1];
+                var deviceType = deviceList[i].deviceType;
+                EveryKitData[portID][deviceType] = data.Data;
+                
+                if(deviceType == 65027)
+                    bluetoothRevEventFlag[portID] = true;
+                break;
+            }
+        }
+    });
+    var LOW = 0,
+    HIGH = 1;
+    
+    var INPUT = 0,
+    OUTPUT = 1;
+    
+    
+    ext.tempModule = function(port){
+        if(EveryKitData[port][65025] != null)
+            return EveryKitData[port][65025]
+        else
+            return 0;
     }
-  }
-
-  ext.analogWrite = function(pin, val) {
-    analogWrite(pin, val);
-  };
-
-  ext.digitalWrite = function(pin, val) {
-    if (val == 'on')
-      digitalWrite(pin, HIGH);
-    else if (val == 'off')
-      digitalWrite(pin, LOW);
-  };
-
-  ext.analogRead = function(pin) {
-    return analogRead(pin);
-  };
-
-  ext.digitalRead = function(pin) {
-    return digitalRead(pin);
-  };
-
-  ext.whenAnalogRead = function(pin, op, val) {
-    if (ANALOG_PINS.indexOf(pin) === -1) return
-    if (op == '>')
-      return analogRead(pin) > val;
-    else if (op == '<')
-      return analogRead(pin) < val;
-    else if (op == '=')
-      return analogRead(pin) == val;
-    else
-      return false;
-  };
-
-  ext.whenDigitalRead = function(pin, val) {
-    if (val == 'on')
-      return digitalRead(pin);
-    else if (val == 'off') {
-      return digitalRead(pin) == 0;
+    ext.ledModule = function(port,color){
+        var deviceID = null ;
+        for(i = 0 ; i < deviceList.length ; i++)
+        {
+            if(deviceList[i].portID[1] == port && deviceList[i].deviceType == 65026)
+            {
+                deviceID = deviceList[i].deviceID;
+                break;
+            }
+        }
+        if(deviceID == null)
+        {
+            return;
+        }
+           /*
+        빨간색-RED
+초록색-GREEN
+파란색-BLUE
+노란색-YELLOW
+자홍색-MAGENTA
+청록색-CYAN
+흰색-WHITE
+        */
+        switch(color)
+        {
+            case "빨간색":
+            case "Red":
+            {
+                data = {"deviceID":deviceID,"data":[0,0,1]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "파란색":
+            case "Blue":
+            {
+                data = {"deviceID":deviceID,"data":[0,1,0]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "초록색":
+            case "Green":
+            {
+                data = {"deviceID":deviceID,"data":[1,0,0]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "노란색":
+            case "Yellow":
+            {
+                data = {"deviceID":deviceID,"data":[1,0,1]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "자홍색":
+            case "Magenta":
+            {
+                data = {"deviceID":deviceID,"data":[0,1,1]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "청록색":
+            case "Cyan":
+            {
+                data = {"deviceID":deviceID,"data":[1,1,0]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "흰색":
+            case "White":
+            {
+                data = {"deviceID":deviceID,"data":[1,1,1]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+            case "끄기":
+            case "Off":
+            {
+                data = {"deviceID":deviceID,"data":[0,0,0]};
+                driverSocket.emit('sendData',data);
+                break;
+            }
+        }
+        return 0;
     }
-  };
-
-  ext.rotateServo = function(pin, deg) {
-    if (deg < 0) deg = 0;
-    else if (deg > 180) deg = 180;
-    rotateServo(pin, deg);
-  };
-
-  ext.servoPosition = function(pin) {
-    return servoVals[pin];
-  };
-
-  ext.getTilt = function(coord) {
-    switch (coord) {
-    case 'up':
-      return accelInputData[0];
-    case 'down':
-      return -accelInputData[0];
-    case 'left':
-      return -accelInputData[1];
-    case 'right':
-      return accelInputData[1];
+    ext.smartplug = function(port,set){
+        var deviceID = null ;
+        for(i = 0 ; i < deviceList.length ; i++)
+        {
+            if(deviceList[i].portID[1] == port && deviceList[i].deviceType == 65028)
+            {
+                deviceID = deviceList[i].deviceID;
+                break;
+            }
+        }
+        if(deviceID == null)
+        {
+            return;
+        }
+        
+        if(set == "on")
+        {
+            data = {"deviceID":deviceID,"data":[1]};
+            driverSocket.emit('sendData',data);
+        }
+        else
+        {
+            data = {"deviceID":deviceID,"data":[0]};
+            driverSocket.emit('sendData',data);
+        }
     }
-  };
-
-  ext.whenIMUEvent = function(imuEvent) {
-    return imuEventData[IMU_EVENT_SHAKE];
-  };
-
-  ext._getStatus = function() {
+    
+    ext.bluetoothReceiveEvent = function(port){
+        if(bluetoothRevEventFlag[port] != null && bluetoothRevEventFlag[port] == true)
+        {
+            bluetoothRevEventFlag[port] = false;
+            return true;
+        }
+            
+        return false;
+    }
+    
+    ext.bluetoothReceive = function(port)
+    {
+        if(EveryKitData[port][65027] != null)
+        {
+            return EveryKitData[port][65027].trim();
+        }
+        
+        return;
+    }
+    
+    ext.bluetoothSend = function(port,msg)
+    {
+        var deviceID = null ;
+        for(i = 0 ; i < deviceList.length ; i++)
+        {
+            if(deviceList[i].portID[1] == port && deviceList[i].deviceType == 65027)
+            {
+                deviceID = deviceList[i].deviceID;
+                break;
+            }
+        }
+        if(deviceID == null)
+        {
+            return;
+        }
+        
+        data = {"deviceID":deviceID,"data":msg};
+        driverSocket.emit('sendData',data);
+        return true;
+    }
+    
+    ext._getStatus = function() {
     if (connected) return {status: 2, msg: 'Arduino connected'};
     else return {status: 1, msg: 'Arduino disconnected'};
-  };
-
-  ext._deviceConnected = function(dev) {
-    potentialDevices.push(dev);
-    if (!device) tryNextDevice();
-  };
-
-  ext._deviceRemoved = function(dev) {
-    console.log('device removed');
-    pinModes = new Uint8Array(12);
-    if (device != dev) return;
-    device = null;
-  };
-
-  ext._shutdown = function() {
-    // TODO: Bring all pins down
-    if (device) device.close();
-    device = null;
-  };
-  
-  ext.tempModule = function(port){
-      return 0;
-  }
-  
+    };
+    
+    ext._deviceConnected = function(dev) {
+        driverSocket = io.connect("http://192.168.137.2:3001",{'forceNew': true});
+    };
+    
+    ext._deviceRemoved = function(dev) {
+        driverSocket.disconnect();
+    };
+    ext._shutdown = function () {
+        driverSocket.disconnect();
+    };
+    
     // Check for GET param 'lang'
-  var paramString = window.location.search.replace(/^\?|\/$/g, '');
-  var vars = paramString.split("&");
-  var lang = 'en';
-  for (var i=0; i<vars.length; i++) {
+    var paramString = window.location.search.replace(/^\?|\/$/g, '');
+    var vars = paramString.split("&");
+    var lang = 'en';
+    for (var i=0; i<vars.length; i++) {
     var pair = vars[i].split('=');
     if (pair.length > 1 && pair[0]=='lang')
       lang = pair[1];
-  }
- 
-  var blocks = {
-   ko: [
-    ['r', '온도 모듈 port < %d.usb_port >', 'tempModule', 5],
-    [' ', 'LED 모듈 port < %d.usb_port > %m.led', 'ledModule', 5],
-    ['r', '블루투수 모듈-수신 port < %d.usb_port > %m.led', 'ledModule', 5],
-    ['h', '블루투수 모듈-송신 Event port < %d.usb_port > %m.led', 'ledModule', 5],
-    [' ', '블루투수 모듈-송신 port < %d.usb_port > %m.led', 'ledModule', 5],
-    [' ', '스마트플러그 모듈 port < %d.usb_port > %m.control', 'ledModule', 5],
-  ],
-   en: [
+    }
+    
+    var blocks = {
+    ko: [
+    ['r', '온도 모듈 포트 < %d.usb_port >', 'tempModule', 5],
+    [' ', 'LED 모듈 포트 < %d.usb_port > %m.led', 'ledModule', 5],
+    ['r', '블루투수 모듈-수신 포트 < %d.usb_port >', 'bluetoothReceive', 5],
+    ['h', '블루투수 모듈-송신 이벤트 포트 < %d.usb_port >', 'bluetoothReceiveEvent', 5],
+    [' ', '블루투수 모듈-송신 포트 < %d.usb_port > %s', 'bluetoothSend', 5],
+    [' ', '스마트플러그 모듈 포트 < %d.usb_port > %m.control', 'smartplug', 5],
+    ],
+    en: [
     ['r', 'Temp Module port < %d.usb_port >', 'tempModule', 5],
     [' ', 'LED Module port < %d.usb_port > %m.led', 'ledModule', 5],
-    ['r', 'Bluetooth-send port < %d.usb_port > %m.led', 'ledModule', 5],
-    ['h', 'Bluetooth-receive Event port < %d.usb_port > %m.led', 'ledModule', 5],
-    [' ', 'Bluetooth-receive port < %d.usb_port > %m.led', 'ledModule', 5],
-    [' ', 'Smart Plug Module port < %d.usb_port > %m.control', 'ledModule', 5],
-  ]
-  };
-
-  var menus = {
-   en: {
+    ['r', 'Bluetooth-send port < %d.usb_port >', 'bluetoothReceive', 5],
+    ['h', 'Bluetooth-receive Event port < %d.usb_port >', 'bluetoothReceiveEvent', 5],
+    [' ', 'Bluetooth-receive port < %d.usb_port > %s', 'bluetoothSend', 5],
+    [' ', 'Smart Plug Module port < %d.usb_port > %m.control', 'smartplug', 5],
+    ]
+    };
+    
+ 
+    var menus = {
+    en: {
     usb_port: USB_PORT,
     control: ['on', 'off'],
     ops: ['>', '=', '<'],
-    led: ['Red','Blue','Green'],
+    led: ['Red','Blue','Green','Yellow','Magenta','Cyan','White',"Off"],
     tiltDir: ['up', 'down', 'left', 'right']
-   },
-   ko: {
+    },
+    ko: {
     usb_port: USB_PORT,
     control: ['on', 'off'],
     ops: ['>', '=', '<'],
-    led: ['Red','Blue','Green'],
+    led: ["빨간색","파란색","초록색","노란색","자홍색","청록색","흰색","끄기"],
     tiltDir: ['up', 'down', 'left', 'right']    
-   }
-  };
-
-  var descriptor = {
+    }
+    };
+    
+    var descriptor = {
     blocks: blocks[lang],
     menus: menus[lang],
     url: 'http://khanning.github.io/scratch-arduino-extension'
-  };
-
-  ScratchExtensions.register('EveryKit Extension', descriptor, ext, {type: 'serial'});
-})({});
+    };
+    
+    ScratchExtensions.register('EveryKit Extension', descriptor, ext);
+    })({});
