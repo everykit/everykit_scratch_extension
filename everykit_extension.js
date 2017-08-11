@@ -22,10 +22,16 @@
     var EveryKitData = new Array();
     var deviceList = new Array();
     var driverSocket = io.connect("http://192.168.137.2:3001",{'forceNew': true});
-    console.log("loading Extension");   
+    driverSocket.emit("isScratchMode");
+    driverSocket.on('isScratchMode', function(res) {
+        if(res == true)
+        {
+            connected = true;
+            driverSocket.emit("refresh");
+        }
+    });
     driverSocket.on('connect', function() {
-        connected = true;
-        driverSocket.emit("refresh");
+        
     });
     driverSocket.on('disconnect', function() {
         connected = false;
@@ -113,15 +119,7 @@
         {
             return;
         }
-           /*
-        빨간색-RED
-초록색-GREEN
-파란색-BLUE
-노란색-YELLOW
-자홍색-MAGENTA
-청록색-CYAN
-흰색-WHITE
-        */
+ 
         switch(color)
         {
             case "빨간색":
