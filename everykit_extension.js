@@ -250,8 +250,8 @@
     }
     
     ext._getStatus = function() {
-    if (connected) return {status: 2, msg: 'Arduino connected'};
-    else return {status: 1, msg: 'Arduino disconnected'};
+    if (connected) return {status: 2, msg: 'Everykit connected'};
+    else return {status: 1, msg: 'Everykit disconnected'};
     };
     
     ext._deviceConnected = function(dev) {
@@ -315,7 +315,7 @@
     var descriptor = {
     blocks: blocks[lang],
     menus: menus[lang],
-    url: 'http://khanning.github.io/scratch-arduino-extension'
+    url: 'http://everykit.io'
     };
     
     ScratchExtensions.register('EveryKit Extension', descriptor, ext);
