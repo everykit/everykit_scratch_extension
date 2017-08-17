@@ -78,6 +78,7 @@
     });
     
     driverSocket.on("receiveData", function(data) {
+        if(connected!=true){return;}
         for(i = 0 ; i < deviceList.length ; i++)
         {
             if(deviceList[i].deviceID == data.DeviceID)
