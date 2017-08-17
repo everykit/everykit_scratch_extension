@@ -29,6 +29,10 @@
             connected = true;
             driverSocket.emit("refresh");
         }
+        else if(res == false)
+        {
+            connected = false;
+        }
     });
     driverSocket.on('connect', function() {
         
@@ -78,7 +82,10 @@
     });
     
     driverSocket.on("receiveData", function(data) {
-        if(connected!=true){return;}
+        if(connected==false)
+        {
+            return;
+        }
         for(i = 0 ; i < deviceList.length ; i++)
         {
             if(deviceList[i].deviceID == data.DeviceID)
